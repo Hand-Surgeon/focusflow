@@ -19,12 +19,28 @@ export async function POST(): Promise<NextResponse> {
 
     const token = await getGoogleAccessToken();
 
-    // Fetch calendar (30 days) and email (30 days) in parallel
+    // Fetch calendar (next 30 days) and action-required emails (past 30 days) in parallel.
+    // Email query focuses only on messages that likely require a follow-up or decision:
+    // - meeting invites, task assignments, deadline reminders, requests for action
+    // - excludes newsletters, promotions, social, automated notifications
+    const ACTION_EMAIL_QUERY = [
+      "newer_than:30d",
+      "-category:promotions",
+      "-category:social",
+      "-category:updates",
+      "-category:forums",
+      "(",
+      "subject:(마감 OR deadline OR 확인 OR 검토 OR 요청 OR 승인 OR 회의 OR 미팅 OR meeting OR request OR review OR confirm OR action OR urgent OR 긴급 OR 참석 OR invite OR 제출 OR submit)",
+      "OR",
+      "subject:(\"follow up\" OR \"follow-up\" OR \"action required\" OR \"response needed\" OR \"please review\" OR \"답변 부탁\" OR \"회신 부탁\")",
+      ")",
+    ].join(" ");
+
     const [calendarEvents, emails] = await Promise.all([
       fetchUpcomingEvents(token, { maxResults: 50, daysAhead: 30 }),
       searchEmails(token, {
-        maxResults: 30,
-        query: "newer_than:30d -category:promotions -category:social -category:updates",
+        maxResults: 20,
+        query: ACTION_EMAIL_QUERY,
       }),
     ]);
 

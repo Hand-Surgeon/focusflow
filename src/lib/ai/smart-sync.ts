@@ -36,8 +36,14 @@ ADHD COACHING PRINCIPLES:
 
 YOUR TASK:
 1. FILTER: From all the calendar events and emails provided, select only items that genuinely need attention (maximum 20 items total, up to 5 per quadrant).
-   - SKIP: routine recurring meetings with no preparation needed, newsletters, promotional emails, FYI-only CCs, automated notifications
-   - KEEP: deadlines, important meetings requiring preparation, action-required emails, health appointments, interviews, presentations
+
+   CALENDAR items — include most events (they represent your schedule):
+   - KEEP: meetings, appointments, deadlines, exams, presentations, health appointments
+   - SKIP: only birthday/holiday reminders or fully automatic events requiring zero action
+
+   EMAIL items — be very selective (only emails requiring a real action or decision):
+   - KEEP: emails requesting a response, approval, review, submission, or attendance confirmation; messages with deadlines; action-required direct messages
+   - SKIP: all newsletters, marketing, promotions, FYI-only forwards, automated system notifications, tracking updates, social media digests, no-reply emails
 
 2. CROSS-REFERENCE: Connect related items. If an email discusses a meeting topic, or multiple items relate to the same project, consider them together for importance.
 
