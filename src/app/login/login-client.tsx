@@ -27,20 +27,31 @@ export function LoginClient(): React.JSX.Element {
   // Redirect to dashboard if the user is already logged in.
   useEffect(() => {
     const checkUser = async (): Promise<void> => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
 
-      if (user) {
-        router.replace("/dashboard");
-      } else {
+        if (user) {
+          router.replace("/dashboard");
+        } else {
+          setIsCheckingAuth(false);
+        }
+      } catch {
         setIsCheckingAuth(false);
       }
     };
 
+    // Timeout to prevent infinite loading
+    const timeout = setTimeout(() => {
+      setIsCheckingAuth(false);
+    }, 3000);
+
     checkUser().catch(() => {
       setIsCheckingAuth(false);
     });
+
+    return () => clearTimeout(timeout);
   }, [router, supabase.auth]);
 
   const handleGoogleLogin = async (): Promise<void> => {
