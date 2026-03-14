@@ -20,8 +20,12 @@ function isPublicRoute(pathname: string): boolean {
 export async function middleware(request: NextRequest): Promise<NextResponse> {
   // Always refresh the session first so cookies stay up-to-date.
   let response: NextResponse;
+  let isAuthenticated = false;
+
   try {
-    response = await updateSession(request);
+    const result = await updateSession(request);
+    response = result.response;
+    isAuthenticated = result.isAuthenticated;
   } catch {
     // If session refresh fails (e.g. Supabase unreachable), allow the
     // request to proceed so the page does not endlessly reload.
@@ -35,14 +39,10 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     return response;
   }
 
-  // For protected routes, verify the user is authenticated.
-  // We read the Supabase auth token cookie directly to avoid creating
-  // another Supabase client instance (updateSession already refreshed it).
-  const hasAuthCookie = request.cookies
-    .getAll()
-    .some((cookie) => cookie.name.startsWith("sb-") && cookie.name.endsWith("-auth-token"));
-
-  if (!hasAuthCookie) {
+  // For protected routes, use the authentication result from updateSession
+  // instead of checking cookies directly (chunked cookies may not match
+  // simple pattern checks).
+  if (!isAuthenticated) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
     loginUrl.searchParams.set("redirectTo", pathname);

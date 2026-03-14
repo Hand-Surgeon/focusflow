@@ -2,16 +2,21 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import type { Database } from "@/types/database";
 
+export interface SessionResult {
+  response: NextResponse;
+  isAuthenticated: boolean;
+}
+
 /**
  * Refreshes the Supabase auth session by reading/writing cookies on the
  * request and response. This must run in the Next.js middleware to keep
  * sessions alive across page navigations.
  *
- * Returns a NextResponse with updated cookie headers.
+ * Returns a SessionResult containing the NextResponse and auth status.
  */
 export async function updateSession(
   request: NextRequest,
-): Promise<NextResponse> {
+): Promise<SessionResult> {
   let supabaseResponse = NextResponse.next({
     request,
   });
@@ -51,12 +56,14 @@ export async function updateSession(
   // IMPORTANT: Avoid using getSession() for authorization -- use
   // getUser() or getClaims() instead as they validate against the
   // Supabase Auth server.
+  let isAuthenticated = false;
   try {
-    await supabase.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser();
+    isAuthenticated = !!user;
   } catch {
     // If Supabase is unreachable or the token is invalid, return the
     // response as-is so the page still renders instead of crashing.
   }
 
-  return supabaseResponse;
+  return { response: supabaseResponse, isAuthenticated };
 }
