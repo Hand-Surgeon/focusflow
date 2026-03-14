@@ -4,7 +4,7 @@ import { getGoogleAccessToken } from "@/lib/google/client";
 import { fetchUpcomingEvents } from "@/lib/google/calendar";
 import { searchEmails } from "@/lib/google/gmail";
 import { smartClassify, splitPendingAndQueued, type SmartSyncItem } from "@/lib/ai/smart-sync";
-import type { TaskQuadrant } from "@/types/database";
+import type { Task, TaskQuadrant } from "@/types/database";
 
 export async function POST(): Promise<NextResponse> {
   try {
@@ -127,10 +127,11 @@ export async function POST(): Promise<NextResponse> {
       };
     });
 
-    const { data: insertedTasks, error: insertError } = await supabase
+    const { data: insertedTasksRaw, error: insertError } = await supabase
       .from("tasks")
       .insert(tasksToInsert)
       .select();
+    const insertedTasks = insertedTasksRaw as Task[] | null;
 
     if (insertError) {
       console.error("Smart sync insert error:", insertError);
