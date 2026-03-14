@@ -81,7 +81,12 @@ export async function POST(): Promise<NextResponse> {
     if (insertError) {
       console.error("Calendar sync insert error:", insertError);
       return NextResponse.json(
-        { error: "Failed to create tasks from calendar events" },
+        {
+          error: "Failed to create tasks from calendar events",
+          detail: insertError.message,
+          code: insertError.code,
+          hint: insertError.hint ?? null,
+        },
         { status: 500 },
       );
     }
