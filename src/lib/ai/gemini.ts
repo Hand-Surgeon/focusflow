@@ -1,7 +1,8 @@
 import { GoogleGenerativeAI, type GenerativeModel } from "@google/generative-ai";
 
-// gemini-1.5-flash has a more generous free tier than gemini-2.0-flash
-const GEMINI_MODEL = "gemini-1.5-flash";
+// gemini-2.0-flash: standard model for Google AI Studio
+// Note: requires a valid API key with billing or free-tier quota available
+const GEMINI_MODEL = "gemini-2.0-flash";
 
 let _model: GenerativeModel | null = null;
 

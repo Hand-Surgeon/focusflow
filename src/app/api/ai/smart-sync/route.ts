@@ -168,8 +168,18 @@ export async function POST(): Promise<NextResponse> {
 
     if (message.includes("access token not available") || message.includes("re-authenticate")) {
       return NextResponse.json(
-        { error: "Google token expired. Please sign out and sign back in." },
+        { error: "Google 토큰이 만료됐어요. 로그아웃 후 다시 로그인해 주세요." },
         { status: 401 },
+      );
+    }
+
+    if (message.includes("429") || message.includes("quota") || message.includes("RESOURCE_EXHAUSTED")) {
+      return NextResponse.json(
+        {
+          error:
+            "Gemini AI 요청 한도를 초과했어요. Google AI Studio에서 API 키의 사용량을 확인하거나, 잠시 후 다시 시도해 주세요. (https://aistudio.google.com)",
+        },
+        { status: 429 },
       );
     }
 
