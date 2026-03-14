@@ -1,4 +1,4 @@
-import { getGeminiModel } from "./gemini";
+import { getGeminiModel, generateWithRetry } from "./gemini";
 import type { TaskQuadrant } from "@/types/database";
 
 export type SmartSyncItem = {
@@ -91,7 +91,7 @@ export async function smartClassify(items: SmartSyncItem[]): Promise<SmartSyncRe
     snippet: item.snippet ?? undefined,
   }));
 
-  const result = await getGeminiModel().generateContent([
+  const result = await generateWithRetry(getGeminiModel(), [
     SMART_SYNC_PROMPT,
     `Today: ${new Date().toISOString().split("T")[0]}\n\nItems to analyze:\n${JSON.stringify(context, null, 2)}`,
   ]);
