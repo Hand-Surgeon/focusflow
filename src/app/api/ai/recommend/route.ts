@@ -1,7 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { QUADRANT_LIMITS } from "@/lib/ai/smart-sync";
-import type { Task } from "@/types/database";
+import type { Task, TaskQuadrant } from "@/types/database";
+
+const VALID_QUADRANTS = new Set<string>(["Q1", "Q2", "Q3", "Q4", "UNCLASSIFIED"]);
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
@@ -15,11 +17,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     const body = (await request.json()) as { completed_quadrant: string };
-    const { completed_quadrant } = body;
+    const rawQuadrant = body.completed_quadrant;
 
-    if (!completed_quadrant) {
-      return NextResponse.json({ error: "completed_quadrant required" }, { status: 400 });
+    if (!rawQuadrant || !VALID_QUADRANTS.has(rawQuadrant)) {
+      return NextResponse.json({ error: "valid completed_quadrant required" }, { status: 400 });
     }
+
+    const completed_quadrant = rawQuadrant as TaskQuadrant;
 
     // Check if there's room in the completed quadrant
     const { data: pendingInQuadrant } = await supabase
