@@ -21,7 +21,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   const supabase = await createClient();
 
-  const { error } = await supabase.auth.exchangeCodeForSession(code);
+  const { data: exchangeData, error } =
+    await supabase.auth.exchangeCodeForSession(code);
 
   if (error) {
     console.error("Auth callback error:", error.message);
@@ -30,10 +31,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Get the session to extract Google provider tokens
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+  // Use the session directly from exchangeCodeForSession —
+  // provider_token is ONLY available in this return value,
+  // NOT from a subsequent getSession() call.
+  const session = exchangeData.session;
 
   if (session?.provider_token) {
     // Calculate token expiry (Google access tokens typically last 1 hour)
@@ -56,6 +57,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     if (tokenError) {
       console.error("Failed to store Google tokens:", tokenError.message);
     }
+  } else {
+    console.error(
+      "No provider_token in session after exchangeCodeForSession.",
+      "Session exists:",
+      !!session,
+    );
   }
 
   return NextResponse.redirect(new URL(redirectTo, origin));
