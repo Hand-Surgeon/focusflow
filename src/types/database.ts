@@ -73,6 +73,16 @@ export type Reminder = {
   sent: boolean;
 };
 
+export type GoogleToken = {
+  id: string; // UUID
+  user_id: string; // UUID, references auth.users
+  access_token: string;
+  refresh_token: string | null;
+  expires_at: string | null; // ISO 8601 timestamp
+  created_at: string; // ISO 8601 timestamp
+  updated_at: string; // ISO 8601 timestamp
+};
+
 // -- Input Types --
 
 export type TaskCreateInput = Omit<
@@ -128,6 +138,16 @@ export type Database = {
           id?: string;
         };
         Update: Partial<Omit<Reminder, "id">>;
+        Relationships: [];
+      };
+      google_tokens: {
+        Row: GoogleToken;
+        Insert: Omit<GoogleToken, "id" | "created_at" | "updated_at"> & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Omit<GoogleToken, "id">>;
         Relationships: [];
       };
     };

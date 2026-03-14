@@ -70,6 +70,10 @@ export function LoginClient(): React.JSX.Element {
         options: {
           redirectTo: callbackUrl.toString(),
           scopes: GOOGLE_SCOPES,
+          queryParams: {
+            access_type: "offline",
+            prompt: "consent",
+          },
         },
       });
 
