@@ -3,7 +3,7 @@
 import { useState, useCallback } from "react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
-import { Plus, Archive, CheckCircle2, RefreshCw, Wifi, WifiOff, Sparkles, X, RotateCcw } from "lucide-react";
+import { Plus, Archive, CheckCircle2, RefreshCw, Wifi, WifiOff, Sparkles, X, RotateCcw, Clock, ArrowUpCircle, Brain } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -51,6 +51,10 @@ export function DashboardClient({
       const bDate = b.completed_at ?? b.updated_at;
       return new Date(bDate).getTime() - new Date(aDate).getTime();
     });
+
+  const queuedTasks = tasks
+    .filter((t) => t.status === "QUEUED")
+    .sort((a, b) => (b.importance_score ?? 0) - (a.importance_score ?? 0));
 
   const handleCreateTask = useCallback((quadrant: TaskQuadrant) => {
     setEditingTask(null);
@@ -442,6 +446,105 @@ export function DashboardClient({
     }
   }, [tasks]);
 
+  // Dismiss a QUEUED task — marks DISMISSED so Smart Sync won't import it again
+  const handleDismissTask = useCallback(async (taskId: string) => {
+    setTasks((prev) =>
+      prev.map((t) => (t.id === taskId ? { ...t, status: "DISMISSED" as const } : t)),
+    );
+    setQueueCount((prev) => Math.max(0, prev - 1));
+
+    try {
+      const response = await fetch(`/api/tasks/${taskId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "DISMISSED" }),
+      });
+
+      if (!response.ok) {
+        setTasks((prev) =>
+          prev.map((t) => (t.id === taskId ? { ...t, status: "QUEUED" as const } : t)),
+        );
+        setQueueCount((prev) => prev + 1);
+        toast.error("삭제 실패");
+      }
+    } catch {
+      setTasks((prev) =>
+        prev.map((t) => (t.id === taskId ? { ...t, status: "QUEUED" as const } : t)),
+      );
+      setQueueCount((prev) => prev + 1);
+      toast.error("삭제 실패");
+    }
+  }, []);
+
+  // Dismiss all currently QUEUED tasks at once
+  const handleBulkDismissQueue = useCallback(async () => {
+    const queued = tasks.filter((t) => t.status === "QUEUED");
+    if (queued.length === 0) return;
+
+    // Optimistic update
+    setTasks((prev) =>
+      prev.map((t) => (t.status === "QUEUED" ? { ...t, status: "DISMISSED" as const } : t)),
+    );
+    setQueueCount(0);
+
+    try {
+      await Promise.all(
+        queued.map((t) =>
+          fetch(`/api/tasks/${t.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status: "DISMISSED" }),
+          }),
+        ),
+      );
+      toast.success(`${queued.length}개를 삭제했어요. 다음 싱크에서 제외됩니다.`);
+    } catch {
+      // Revert
+      setTasks((prev) =>
+        prev.map((t) => (t.status === "DISMISSED" && queued.some((q) => q.id === t.id) ? { ...t, status: "QUEUED" as const } : t)),
+      );
+      setQueueCount(queued.length);
+      toast.error("일괄 삭제 실패");
+    }
+  }, [tasks]);
+
+  // Manually promote a QUEUED task to PENDING (add to matrix)
+  const handlePromoteTask = useCallback(async (taskId: string) => {
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task) return;
+
+    // Optimistic update
+    setTasks((prev) =>
+      prev.map((t) => (t.id === taskId ? { ...t, status: "PENDING" as const } : t)),
+    );
+    setQueueCount((prev) => Math.max(0, prev - 1));
+
+    try {
+      const response = await fetch(`/api/tasks/${taskId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "PENDING" }),
+      });
+
+      if (!response.ok) {
+        setTasks((prev) =>
+          prev.map((t) => (t.id === taskId ? { ...t, status: "QUEUED" as const } : t)),
+        );
+        setQueueCount((prev) => prev + 1);
+        toast.error("매트릭스에 추가 실패");
+        return;
+      }
+
+      toast.success("매트릭스에 추가했어요!");
+    } catch {
+      setTasks((prev) =>
+        prev.map((t) => (t.id === taskId ? { ...t, status: "QUEUED" as const } : t)),
+      );
+      setQueueCount((prev) => prev + 1);
+      toast.error("매트릭스에 추가 실패");
+    }
+  }, [tasks]);
+
   return (
     <div className="min-h-screen bg-background">
       <Header
@@ -550,9 +653,18 @@ export function DashboardClient({
 
         <Tabs defaultValue="matrix">
           <TabsList>
-            <TabsTrigger value="matrix">Matrix</TabsTrigger>
+            <TabsTrigger value="matrix">매트릭스</TabsTrigger>
+            <TabsTrigger value="queue" className="gap-1.5">
+              <Clock className="size-3.5" />
+              대기 중
+              {queuedTasks.length > 0 && (
+                <span className="ml-1 rounded-full bg-violet-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-violet-600">
+                  {queuedTasks.length}
+                </span>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="completed">
-              Completed ({completedTasks.length})
+              완료 ({completedTasks.length})
             </TabsTrigger>
           </TabsList>
 
@@ -568,15 +680,119 @@ export function DashboardClient({
             />
           </TabsContent>
 
+          <TabsContent value="queue" className="mt-4">
+            {queuedTasks.length === 0 ? (
+              <Card className="flex flex-col items-center justify-center p-8 text-center">
+                <Clock className="mb-2 size-10 text-muted-foreground/40" />
+                <p className="text-sm font-medium text-muted-foreground">
+                  대기 중인 항목이 없어요
+                </p>
+                <p className="text-xs text-muted-foreground/70">
+                  Smart Sync를 실행하면 AI가 중요한 항목을 여기에 모아둬요
+                </p>
+              </Card>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between px-1">
+                  <p className="text-xs text-muted-foreground">
+                    AI 코치가 중요도 순으로 정리했어요. 준비되면 매트릭스에 추가하세요.
+                  </p>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleBulkDismissQueue}
+                    className="h-7 gap-1 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  >
+                    <X className="size-3" />
+                    전체 삭제
+                  </Button>
+                </div>
+                {queuedTasks.map((task) => {
+                  const quadrantColors: Record<string, string> = {
+                    Q1: "bg-red-50 border-red-200 text-red-700",
+                    Q2: "bg-blue-50 border-blue-200 text-blue-700",
+                    Q3: "bg-yellow-50 border-yellow-200 text-yellow-700",
+                    Q4: "bg-green-50 border-green-200 text-green-700",
+                    UNCLASSIFIED: "bg-gray-50 border-gray-200 text-gray-600",
+                  };
+                  const quadrantLabels: Record<string, string> = {
+                    Q1: "즉시 처리",
+                    Q2: "계획",
+                    Q3: "위임",
+                    Q4: "여유시간",
+                    UNCLASSIFIED: "미분류",
+                  };
+                  const colorClass = quadrantColors[task.quadrant ?? "UNCLASSIFIED"] ?? quadrantColors.UNCLASSIFIED;
+                  const quadrantLabel = quadrantLabels[task.quadrant ?? "UNCLASSIFIED"] ?? "미분류";
+
+                  return (
+                    <Card key={task.id} size="sm" className="py-3">
+                      <div className="flex items-start justify-between gap-3 px-3">
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${colorClass}`}>
+                              {task.quadrant} · {quadrantLabel}
+                            </span>
+                            {task.importance_score != null && (
+                              <span className="text-[10px] text-muted-foreground">
+                                중요도 {task.importance_score}/10
+                              </span>
+                            )}
+                            {task.estimated_minutes != null && (
+                              <span className="text-[10px] text-muted-foreground">
+                                약 {task.estimated_minutes}분
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-sm font-medium">{task.title}</p>
+                          {task.nudge_message && (
+                            <p className="flex items-start gap-1 text-xs text-violet-600">
+                              <Brain className="mt-0.5 size-3 shrink-0" />
+                              {task.nudge_message}
+                            </p>
+                          )}
+                          {task.ai_reason && (
+                            <p className="text-xs text-muted-foreground">{task.ai_reason}</p>
+                          )}
+                        </div>
+                        <div className="flex shrink-0 gap-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handlePromoteTask(task.id)}
+                            className="gap-1 text-xs border-violet-300 text-violet-600 hover:bg-violet-50"
+                          >
+                            <ArrowUpCircle className="size-3.5" />
+                            추가
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon-xs"
+                            onClick={() => handleDismissTask(task.id)}
+                            aria-label="무시"
+                            title="삭제 — 다음 싱크에서 제외"
+                            className="text-muted-foreground hover:text-destructive"
+                          >
+                            <X className="size-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </TabsContent>
+
           <TabsContent value="completed" className="mt-4">
             {completedTasks.length === 0 ? (
               <Card className="flex flex-col items-center justify-center p-8 text-center">
                 <CheckCircle2 className="mb-2 size-10 text-muted-foreground/40" />
                 <p className="text-sm font-medium text-muted-foreground">
-                  No completed tasks yet
+                  완료한 일이 없어요
                 </p>
                 <p className="text-xs text-muted-foreground/70">
-                  Complete tasks from your matrix to see them here
+                  매트릭스에서 완료한 항목이 여기에 쌓여요
                 </p>
               </Card>
             ) : (
@@ -589,12 +805,12 @@ export function DashboardClient({
                           {task.title}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          Completed{" "}
+                          완료{" "}
                           {task.completed_at
                             ? formatDistanceToNow(new Date(task.completed_at), {
                                 addSuffix: true,
                               })
-                            : "recently"}
+                            : "방금"}
                         </p>
                       </div>
                       <div className="flex items-center gap-1">
@@ -602,8 +818,8 @@ export function DashboardClient({
                           variant="ghost"
                           size="icon-xs"
                           onClick={() => handleReviveTask(task.id)}
-                          aria-label="Revive task"
-                          title="Revive — back to matrix"
+                          aria-label="다시 활성화"
+                          title="매트릭스로 되살리기"
                         >
                           <RotateCcw className="size-3.5 text-violet-500" />
                         </Button>
@@ -611,8 +827,8 @@ export function DashboardClient({
                           variant="ghost"
                           size="icon-xs"
                           onClick={() => handleArchiveTask(task.id)}
-                          aria-label="Archive task"
-                          title="Archive"
+                          aria-label="보관"
+                          title="보관"
                         >
                           <Archive className="size-3.5 text-muted-foreground" />
                         </Button>

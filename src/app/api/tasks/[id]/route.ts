@@ -10,7 +10,7 @@ const UpdateTaskSchema = z.object({
     .enum(['Q1', 'Q2', 'Q3', 'Q4', 'UNCLASSIFIED'] satisfies TaskQuadrant[])
     .optional(),
   status: z
-    .enum(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'ARCHIVED'] satisfies TaskStatus[])
+    .enum(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'ARCHIVED', 'QUEUED', 'DISMISSED'] satisfies TaskStatus[])
     .optional(),
   energy_cost: z.number().int().min(1).max(5).optional(),
   due_date: z.string().datetime({ offset: true }).nullable().optional(),

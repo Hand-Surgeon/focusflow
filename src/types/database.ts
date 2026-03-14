@@ -7,7 +7,7 @@
 
 export type TaskQuadrant = "Q1" | "Q2" | "Q3" | "Q4" | "UNCLASSIFIED";
 
-export type TaskStatus = "PENDING" | "IN_PROGRESS" | "COMPLETED" | "ARCHIVED" | "QUEUED";
+export type TaskStatus = "PENDING" | "IN_PROGRESS" | "COMPLETED" | "ARCHIVED" | "QUEUED" | "DISMISSED";
 
 export type SourceType = "MANUAL" | "CALENDAR" | "EMAIL" | "BRAIN_DUMP";
 
