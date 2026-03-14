@@ -1,15 +1,15 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI, type GenerativeModel } from "@google/generative-ai";
 
-const apiKey = process.env.GEMINI_API_KEY;
+let _model: GenerativeModel | null = null;
 
-if (!apiKey) {
-  throw new Error("GEMINI_API_KEY environment variable is not set");
+export function getGeminiModel(): GenerativeModel {
+  if (!_model) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error("GEMINI_API_KEY environment variable is not set");
+    }
+    const genAI = new GoogleGenerativeAI(apiKey);
+    _model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+  }
+  return _model;
 }
-
-const genAI = new GoogleGenerativeAI(apiKey);
-
-export const geminiModel = genAI.getGenerativeModel({
-  model: "gemini-2.0-flash",
-});
-
-export { genAI };

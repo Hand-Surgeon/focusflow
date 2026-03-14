@@ -1,4 +1,4 @@
-import { geminiModel } from "./gemini";
+import { getGeminiModel } from "./gemini";
 import {
   CLASSIFY_TASK_PROMPT,
   DECOMPOSE_TASK_PROMPT,
@@ -34,7 +34,7 @@ export async function classifyTask(
     .filter(Boolean)
     .join("\n");
 
-  const result = await geminiModel.generateContent([
+  const result = await getGeminiModel().generateContent([
     CLASSIFY_TASK_PROMPT,
     context,
   ]);
@@ -54,7 +54,7 @@ export async function decomposeTask(
     .filter(Boolean)
     .join("\n");
 
-  const result = await geminiModel.generateContent([
+  const result = await getGeminiModel().generateContent([
     DECOMPOSE_TASK_PROMPT,
     context,
   ]);
@@ -66,7 +66,7 @@ export async function decomposeTask(
 export async function processBrainDump(
   rawText: string,
 ): Promise<BrainDumpResult> {
-  const result = await geminiModel.generateContent([
+  const result = await getGeminiModel().generateContent([
     BRAIN_DUMP_PROMPT,
     `Brain dump text:\n${rawText}`,
   ]);
@@ -86,7 +86,7 @@ export async function selectTop3(tasks: Task[]): Promise<Top3Result> {
     status: t.status,
   }));
 
-  const result = await geminiModel.generateContent([
+  const result = await getGeminiModel().generateContent([
     TOP3_PROMPT,
     `Pending tasks:\n${JSON.stringify(taskList, null, 2)}`,
   ]);
