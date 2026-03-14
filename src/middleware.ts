@@ -19,7 +19,14 @@ function isPublicRoute(pathname: string): boolean {
 
 export async function middleware(request: NextRequest): Promise<NextResponse> {
   // Always refresh the session first so cookies stay up-to-date.
-  const response = await updateSession(request);
+  let response: NextResponse;
+  try {
+    response = await updateSession(request);
+  } catch {
+    // If session refresh fails (e.g. Supabase unreachable), allow the
+    // request to proceed so the page does not endlessly reload.
+    response = NextResponse.next({ request });
+  }
 
   const { pathname } = request.nextUrl;
 

@@ -51,7 +51,12 @@ export async function updateSession(
   // IMPORTANT: Avoid using getSession() for authorization -- use
   // getUser() or getClaims() instead as they validate against the
   // Supabase Auth server.
-  await supabase.auth.getUser();
+  try {
+    await supabase.auth.getUser();
+  } catch {
+    // If Supabase is unreachable or the token is invalid, return the
+    // response as-is so the page still renders instead of crashing.
+  }
 
   return supabaseResponse;
 }
