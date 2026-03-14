@@ -41,7 +41,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     // Find best QUEUED task for this quadrant
-    const { data: queuedTasks } = await supabase
+    const { data: queuedTasksRaw } = await supabase
       .from("tasks")
       .select("*")
       .eq("user_id", user.id)
@@ -50,16 +50,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       .order("importance_score", { ascending: false })
       .order("due_date", { ascending: true, nullsFirst: false })
       .limit(1);
+    const queuedTasks = queuedTasksRaw as Task[] | null;
 
     if (!queuedTasks?.length) {
       // Try to find from any quadrant if none in same quadrant
-      const { data: anyQueued } = await supabase
+      const { data: anyQueuedRaw } = await supabase
         .from("tasks")
         .select("*")
         .eq("user_id", user.id)
         .eq("status", "QUEUED")
         .order("importance_score", { ascending: false })
         .limit(1);
+      const anyQueued = anyQueuedRaw as Task[] | null;
 
       if (!anyQueued?.length) {
         return NextResponse.json({
