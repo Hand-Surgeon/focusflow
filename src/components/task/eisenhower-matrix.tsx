@@ -27,7 +27,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { useDroppable } from "@dnd-kit/core";
-import { Plus, ChevronDown, Inbox } from "lucide-react";
+import { Plus, ChevronDown, Inbox, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { TaskCard } from "@/components/task/task-card";
@@ -36,6 +36,7 @@ import type { Task, TaskQuadrant } from "@/types/database";
 
 interface EisenhowerMatrixProps {
   tasks: Task[];
+  queueCount: number;
   onTaskComplete: (taskId: string) => void;
   onTaskEdit: (task: Task) => void;
   onTaskDelete: (taskId: string) => void;
@@ -79,8 +80,8 @@ const QUADRANTS: QuadrantConfig[] = [
   },
   {
     id: "Q4",
-    title: "Eliminate",
-    subtitle: "Not Urgent, Not Important",
+    title: "When Free",
+    subtitle: "Light Tasks for Free Time",
     borderColor: "border-gray-400/30",
     headerBg: "bg-gray-50 dark:bg-gray-900/20",
     headerText: "text-gray-600 dark:text-gray-400",
@@ -200,6 +201,7 @@ function QuadrantDropZone({
 
 export function EisenhowerMatrix({
   tasks,
+  queueCount,
   onTaskComplete,
   onTaskEdit,
   onTaskDelete,
@@ -216,9 +218,9 @@ export function EisenhowerMatrix({
     }),
   );
 
-  // Filter out COMPLETED and ARCHIVED tasks for the matrix
+  // Filter out COMPLETED, ARCHIVED, and QUEUED tasks for the matrix
   const activeTasks = tasks.filter(
-    (t) => t.status !== "COMPLETED" && t.status !== "ARCHIVED",
+    (t) => t.status !== "COMPLETED" && t.status !== "ARCHIVED" && t.status !== "QUEUED",
   );
 
   function getTasksByQuadrant(quadrant: TaskQuadrant): Task[] {
@@ -288,6 +290,21 @@ export function EisenhowerMatrix({
             />
           ))}
         </div>
+
+        {queueCount > 0 ? (
+          <div className="mt-3 flex items-center justify-center gap-2 rounded-lg border border-dashed border-violet-500/30 bg-violet-50/50 dark:bg-violet-950/10 py-2.5 px-4">
+            <Clock className="size-4 text-violet-500" />
+            <span className="text-sm text-muted-foreground">
+              대기 중:{" "}
+              <span className="font-semibold text-violet-600 dark:text-violet-400">
+                {queueCount}개
+              </span>
+              <span className="ml-1 text-xs">
+                — 완료하면 다음 할 일을 추천해드려요
+              </span>
+            </span>
+          </div>
+        ) : null}
 
         {/* Unclassified tasks section */}
         {unclassifiedTasks.length > 0 ? (

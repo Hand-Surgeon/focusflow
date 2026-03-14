@@ -7,7 +7,7 @@
 
 export type TaskQuadrant = "Q1" | "Q2" | "Q3" | "Q4" | "UNCLASSIFIED";
 
-export type TaskStatus = "PENDING" | "IN_PROGRESS" | "COMPLETED" | "ARCHIVED";
+export type TaskStatus = "PENDING" | "IN_PROGRESS" | "COMPLETED" | "ARCHIVED" | "QUEUED";
 
 export type SourceType = "MANUAL" | "CALENDAR" | "EMAIL" | "BRAIN_DUMP";
 
@@ -45,6 +45,9 @@ export type Task = {
   parent_task_id: string | null; // UUID, self-referencing
   position: number;
   completed_at: string | null; // ISO 8601 timestamp
+  importance_score: number | null; // 1-10, AI-assigned importance
+  nudge_message: string | null; // ADHD-friendly motivation message
+  estimated_minutes: number | null; // AI-estimated time to complete
   created_at: string; // ISO 8601 timestamp
   updated_at: string; // ISO 8601 timestamp
 };
@@ -108,10 +111,13 @@ export type Database = {
       };
       tasks: {
         Row: Task;
-        Insert: Omit<Task, "id" | "created_at" | "updated_at"> & {
+        Insert: Omit<Task, "id" | "created_at" | "updated_at" | "importance_score" | "nudge_message" | "estimated_minutes"> & {
           id?: string;
           created_at?: string;
           updated_at?: string;
+          importance_score?: number | null;
+          nudge_message?: string | null;
+          estimated_minutes?: number | null;
         };
         Update: Partial<Omit<Task, "id">>;
         Relationships: [];

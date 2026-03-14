@@ -3,7 +3,7 @@
 import { useState, useCallback } from "react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
-import { Plus, Archive, CheckCircle2, Calendar, Mail, RefreshCw, Wifi, WifiOff } from "lucide-react";
+import { Plus, Archive, CheckCircle2, RefreshCw, Wifi, WifiOff, Sparkles, X, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -37,8 +37,11 @@ export function DashboardClient({
   const [focusTask, setFocusTask] = useState<Task | null>(null);
   const [completionCount, setCompletionCount] = useState(0);
   const [currentStreak, setCurrentStreak] = useState(0);
-  const [syncingCalendar, setSyncingCalendar] = useState(false);
-  const [scanningEmail, setScanningEmail] = useState(false);
+  const [smartSyncing, setSmartSyncing] = useState(false);
+  const [dailySummary, setDailySummary] = useState<string | null>(null);
+  const [queueCount, setQueueCount] = useState(() =>
+    initialTasks.filter((t) => t.status === "QUEUED").length,
+  );
 
   // Derived state
   const completedTasks = tasks
@@ -177,6 +180,35 @@ export function DashboardClient({
         setCurrentStreak(data.streak.current_streak);
       }
       toast.success(data.streak?.message ?? "Task completed!");
+
+      // Recommend next task from queue
+      try {
+        const completedTask = tasks.find((t) => t.id === taskId);
+        if (completedTask) {
+          const recResponse = await fetch("/api/ai/recommend", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ completed_quadrant: completedTask.quadrant }),
+          });
+          const recData = await recResponse.json();
+
+          if (recData.promoted) {
+            setTasks((prev) =>
+              prev.map((t) =>
+                t.id === recData.promoted.id ? recData.promoted : t,
+              ),
+            );
+            setQueueCount((prev) => Math.max(0, prev - 1));
+            toast.success(recData.message, {
+              description:
+                recData.promoted.nudge_message ?? recData.promoted.title,
+              duration: 5000,
+            });
+          }
+        }
+      } catch {
+        // Silent fail for recommendation - not critical
+      }
     } catch {
       setTasks((prev) =>
         prev.map((t) =>
@@ -289,57 +321,40 @@ export function DashboardClient({
     [handleCompleteTask],
   );
 
-  const handleCalendarSync = useCallback(async () => {
-    setSyncingCalendar(true);
+  const handleSmartSync = useCallback(async () => {
+    setSmartSyncing(true);
     try {
-      const response = await fetch("/api/calendar/sync", { method: "POST" });
+      const response = await fetch("/api/ai/smart-sync", { method: "POST" });
       const data = await response.json();
 
       if (!response.ok) {
-        toast.error(data.error ?? "Calendar sync failed");
+        toast.error(data.error ?? "Smart Sync failed");
         return;
       }
 
-      if (data.synced > 0 && data.tasks) {
-        const newTasks: Task[] = data.tasks;
-        setTasks((prev) => [...prev, ...newTasks]);
-        toast.success(`${data.synced} calendar events imported`);
+      if (data.daily_summary) {
+        setDailySummary(data.daily_summary);
+      }
+
+      if (data.tasks?.length > 0) {
+        setTasks((prev) => [...prev, ...data.tasks]);
+      }
+
+      // Count queued tasks
+      const queuedCount = (data.tasks ?? []).filter(
+        (t: Task) => t.status === "QUEUED",
+      ).length;
+      setQueueCount((prev) => prev + queuedCount);
+
+      if (data.synced > 0 || data.queued > 0) {
+        toast.success(`${data.synced}개 표시, ${data.queued}개 대기 중`);
       } else {
-        toast.info(data.message ?? "No new events to sync");
+        toast.info(data.message ?? "새로운 항목이 없어요");
       }
     } catch {
-      toast.error("Calendar sync failed");
+      toast.error("Smart Sync failed");
     } finally {
-      setSyncingCalendar(false);
-    }
-  }, []);
-
-  const handleEmailScan = useCallback(async () => {
-    setScanningEmail(true);
-    try {
-      const response = await fetch("/api/email/scan", { method: "POST" });
-      const data = await response.json();
-
-      if (!response.ok) {
-        toast.error(data.error ?? "Email scan failed");
-        return;
-      }
-
-      if (data.created > 0) {
-        // Refresh tasks to get the newly created email tasks
-        const tasksResponse = await fetch("/api/tasks");
-        if (tasksResponse.ok) {
-          const allTasks: Task[] = await tasksResponse.json();
-          setTasks(allTasks);
-        }
-        toast.success(`${data.created} emails imported as tasks`);
-      } else {
-        toast.info(data.message ?? "No new actionable emails");
-      }
-    } catch {
-      toast.error("Email scan failed");
-    } finally {
-      setScanningEmail(false);
+      setSmartSyncing(false);
     }
   }, []);
 
@@ -377,6 +392,55 @@ export function DashboardClient({
       toast.error("Failed to archive task");
     }
   }, []);
+
+  const handleReviveTask = useCallback(async (taskId: string) => {
+    const taskToRevive = tasks.find((t) => t.id === taskId);
+    if (!taskToRevive) return;
+
+    // Optimistic update — move back to PENDING with original quadrant
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === taskId
+          ? { ...t, status: "PENDING" as const, completed_at: null }
+          : t,
+      ),
+    );
+
+    try {
+      const response = await fetch(`/api/tasks/${taskId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: "PENDING",
+          completed_at: null,
+        }),
+      });
+
+      if (!response.ok) {
+        // Revert
+        setTasks((prev) =>
+          prev.map((t) =>
+            t.id === taskId ? taskToRevive : t,
+          ),
+        );
+        toast.error("Failed to revive task");
+        return;
+      }
+
+      const updatedTask: Task = await response.json();
+      setTasks((prev) =>
+        prev.map((t) => (t.id === updatedTask.id ? updatedTask : t)),
+      );
+      toast.success("Task revived! Back in the matrix.");
+    } catch {
+      setTasks((prev) =>
+        prev.map((t) =>
+          t.id === taskId ? taskToRevive : t,
+        ),
+      );
+      toast.error("Failed to revive task");
+    }
+  }, [tasks]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -433,28 +497,16 @@ export function DashboardClient({
             <Button
               variant="outline"
               size="sm"
-              onClick={handleCalendarSync}
-              disabled={syncingCalendar}
+              onClick={handleSmartSync}
+              disabled={smartSyncing}
+              className="bg-gradient-to-r from-violet-500/10 to-blue-500/10 border-violet-500/30 hover:from-violet-500/20 hover:to-blue-500/20"
             >
-              {syncingCalendar ? (
+              {smartSyncing ? (
                 <RefreshCw className="size-4 animate-spin" />
               ) : (
-                <Calendar className="size-4" />
+                <Sparkles className="size-4 text-violet-500" />
               )}
-              <span className="hidden sm:inline">Calendar</span>
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleEmailScan}
-              disabled={scanningEmail}
-            >
-              {scanningEmail ? (
-                <RefreshCw className="size-4 animate-spin" />
-              ) : (
-                <Mail className="size-4" />
-              )}
-              <span className="hidden sm:inline">Email</span>
+              <span>Smart Sync</span>
             </Button>
             <Button onClick={() => handleCreateTask("UNCLASSIFIED")}>
               <Plus className="size-4" />
@@ -462,6 +514,28 @@ export function DashboardClient({
             </Button>
           </div>
         </div>
+
+        {dailySummary ? (
+          <Card className="mb-6 border-violet-500/20 bg-gradient-to-r from-violet-50 to-blue-50 dark:from-violet-950/20 dark:to-blue-950/20">
+            <div className="flex items-start gap-3 px-4 py-3">
+              <Sparkles className="mt-0.5 size-5 shrink-0 text-violet-500" />
+              <div>
+                <h3 className="text-sm font-semibold text-violet-700 dark:text-violet-400">
+                  AI Coach
+                </h3>
+                <p className="text-sm text-muted-foreground">{dailySummary}</p>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                className="ml-auto shrink-0"
+                onClick={() => setDailySummary(null)}
+              >
+                <X className="size-3.5" />
+              </Button>
+            </div>
+          </Card>
+        ) : null}
 
         {/* ADHD Quick Actions */}
         <div className="mb-6 grid gap-4 md:grid-cols-2">
@@ -485,6 +559,7 @@ export function DashboardClient({
           <TabsContent value="matrix" className="mt-4">
             <EisenhowerMatrix
               tasks={tasks}
+              queueCount={queueCount}
               onTaskComplete={handleCompleteTask}
               onTaskEdit={handleEditTask}
               onTaskDelete={handleDeleteTask}
@@ -522,15 +597,26 @@ export function DashboardClient({
                             : "recently"}
                         </p>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        onClick={() => handleArchiveTask(task.id)}
-                        aria-label="Archive task"
-                        title="Archive"
-                      >
-                        <Archive className="size-3.5 text-muted-foreground" />
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          onClick={() => handleReviveTask(task.id)}
+                          aria-label="Revive task"
+                          title="Revive — back to matrix"
+                        >
+                          <RotateCcw className="size-3.5 text-violet-500" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          onClick={() => handleArchiveTask(task.id)}
+                          aria-label="Archive task"
+                          title="Archive"
+                        >
+                          <Archive className="size-3.5 text-muted-foreground" />
+                        </Button>
+                      </div>
                     </div>
                   </Card>
                 ))}
