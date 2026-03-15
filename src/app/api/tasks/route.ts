@@ -101,6 +101,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           email: user.email ?? '',
           name: (user.user_metadata?.full_name as string) ?? null,
           avatar_url: (user.user_metadata?.avatar_url as string) ?? null,
+          role: 'user',
+          preferences: {},
         });
 
       if (upsertError) {

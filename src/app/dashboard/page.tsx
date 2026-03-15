@@ -29,6 +29,8 @@ export default async function DashboardPage(): Promise<React.JSX.Element> {
         email: authUser.email ?? "",
         name: (authUser.user_metadata?.full_name as string) ?? null,
         avatar_url: (authUser.user_metadata?.avatar_url as string) ?? null,
+        role: "user",
+        preferences: {},
       })
       .select()
       .single();
