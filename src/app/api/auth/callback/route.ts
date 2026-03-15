@@ -16,8 +16,22 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const redirectTo = searchParams.get("redirectTo") ?? "/dashboard";
 
   if (!code) {
+    // Supabase may redirect with error params when OAuth fails upstream
+    const supabaseError = searchParams.get("error");
+    const supabaseErrorDesc = searchParams.get("error_description");
     const loginUrl = new URL("/login", origin);
-    loginUrl.searchParams.set("error", "missing_code");
+    loginUrl.searchParams.set(
+      "error",
+      supabaseError ?? "missing_code",
+    );
+    if (supabaseErrorDesc) {
+      loginUrl.searchParams.set("error_description", supabaseErrorDesc);
+    }
+    // Log all query params for debugging
+    console.error(
+      "Auth callback missing code. Query params:",
+      Object.fromEntries(searchParams.entries()),
+    );
     return NextResponse.redirect(loginUrl);
   }
 
