@@ -23,6 +23,8 @@ export function LoginClient(): React.JSX.Element {
   const supabase = createClient();
   const [isLoading, setIsLoading] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const authError = searchParams.get("error");
+  const errorDetail = searchParams.get("error_description");
 
   // Redirect to dashboard if the user is already logged in.
   useEffect(() => {
@@ -106,6 +108,12 @@ export function LoginClient(): React.JSX.Element {
         </CardHeader>
 
         <CardContent className="space-y-4">
+          {authError && (
+            <div className="rounded-md bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-400">
+              <p className="font-medium">Login failed: {authError}</p>
+              {errorDetail && <p className="mt-1 text-xs">{errorDetail}</p>}
+            </div>
+          )}
           <Button
             variant="outline"
             size="lg"

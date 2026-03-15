@@ -55,6 +55,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     console.error("Auth callback error:", error.message);
     const loginUrl = new URL("/login", origin);
     loginUrl.searchParams.set("error", "auth_failed");
+    loginUrl.searchParams.set("error_description", error.message);
     return NextResponse.redirect(loginUrl);
   }
 
