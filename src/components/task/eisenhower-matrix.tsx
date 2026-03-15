@@ -96,6 +96,7 @@ interface QuadrantDropZoneProps {
   onTaskComplete: (taskId: string) => void;
   onTaskEdit: (task: Task) => void;
   onTaskDelete: (taskId: string) => void;
+  onTaskMove: (taskId: string, quadrant: TaskQuadrant) => void;
   onCreateTask: () => void;
 }
 
@@ -105,6 +106,7 @@ function QuadrantDropZone({
   onTaskComplete,
   onTaskEdit,
   onTaskDelete,
+  onTaskMove,
   onCreateTask,
 }: QuadrantDropZoneProps): React.JSX.Element {
   const [expanded, setExpanded] = useState(false);
@@ -169,6 +171,7 @@ function QuadrantDropZone({
                 onComplete={onTaskComplete}
                 onEdit={onTaskEdit}
                 onDelete={onTaskDelete}
+                onMove={onTaskMove}
               />
             ))
           )}
@@ -286,6 +289,7 @@ export function EisenhowerMatrix({
               onTaskComplete={onTaskComplete}
               onTaskEdit={onTaskEdit}
               onTaskDelete={onTaskDelete}
+              onTaskMove={onTaskMove}
               onCreateTask={() => onCreateTask(config.id)}
             />
           ))}
