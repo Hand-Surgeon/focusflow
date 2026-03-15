@@ -1,12 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createServerClient } from "@supabase/ssr";
+import type { Database } from "@/types/database";
 
 /**
  * Handles the OAuth callback from Supabase Auth.
  *
- * 1. Exchanges the authorization `code` for a session.
- * 2. Stores the Google provider_token and provider_refresh_token in the database.
- * 3. Redirects to the `redirectTo` destination on success or /login on failure.
+ * Uses its own Supabase client (instead of the shared `createClient`) so that
+ * auth cookies written by `exchangeCodeForSession` are captured on the
+ * redirect response. The shared helper uses `cookies()` from `next/headers`,
+ * which may not propagate cookies onto a `NextResponse.redirect()`.
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const { searchParams, origin } = request.nextUrl;
@@ -19,7 +21,32 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.redirect(loginUrl);
   }
 
-  const supabase = await createClient();
+  // Build the redirect response first so Supabase can write cookies onto it.
+  const redirectUrl = new URL(redirectTo, origin);
+  let response = NextResponse.redirect(redirectUrl);
+
+  const supabase = createServerClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll(): { name: string; value: string }[] {
+          return request.cookies.getAll();
+        },
+        setAll(
+          cookiesToSet: {
+            name: string;
+            value: string;
+            options: Record<string, unknown>;
+          }[],
+        ): void {
+          for (const { name, value, options } of cookiesToSet) {
+            response.cookies.set(name, value, options);
+          }
+        },
+      },
+    },
+  );
 
   const { data: exchangeData, error } =
     await supabase.auth.exchangeCodeForSession(code);
@@ -65,5 +92,5 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  return NextResponse.redirect(new URL(redirectTo, origin));
+  return response;
 }
