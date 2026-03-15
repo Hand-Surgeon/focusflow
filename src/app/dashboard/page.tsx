@@ -14,11 +14,26 @@ export default async function DashboardPage(): Promise<React.JSX.Element> {
   }
 
   // Fetch user profile from users table
-  const { data: userProfile } = await supabase
+  let { data: userProfile } = await supabase
     .from("users")
     .select("*")
     .eq("id", authUser.id)
     .single();
+
+  // Auto-create profile if trigger failed (FK required for task creation)
+  if (!userProfile) {
+    const { data: created } = await supabase
+      .from("users")
+      .upsert({
+        id: authUser.id,
+        email: authUser.email ?? "",
+        name: (authUser.user_metadata?.full_name as string) ?? null,
+        avatar_url: (authUser.user_metadata?.avatar_url as string) ?? null,
+      })
+      .select()
+      .single();
+    userProfile = created;
+  }
 
   // Build User object from profile or auth fallback
   const user: User = (userProfile as User | null) ?? {

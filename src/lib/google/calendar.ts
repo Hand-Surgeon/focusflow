@@ -11,14 +11,36 @@ export type CalendarEvent = {
   status: string;
 };
 
-type CalendarListResponse = {
+type CalendarEventsResponse = {
   items?: CalendarEvent[];
   nextPageToken?: string;
 };
 
+type CalendarEntry = {
+  id: string;
+  summary: string;
+  selected?: boolean;
+  accessRole: string;
+};
+
+type CalendarListResponse = {
+  items?: CalendarEntry[];
+};
+
+/**
+ * Fetches all calendar IDs the user has access to.
+ */
+async function fetchCalendarIds(token: string): Promise<string[]> {
+  const url = `${CALENDAR_API}/users/me/calendarList?minAccessRole=reader`;
+  const response = await googleFetch(url, token);
+  const data: CalendarListResponse = await response.json();
+
+  return (data.items ?? []).map((cal) => cal.id);
+}
+
 /**
  * Fetches upcoming calendar events for the authenticated user.
- * Returns events from the primary calendar within the specified time range.
+ * Returns events from ALL calendars within the specified time range.
  */
 export async function fetchUpcomingEvents(
   token: string,
@@ -42,13 +64,39 @@ export async function fetchUpcomingEvents(
     orderBy: "startTime",
   });
 
-  const url = `${CALENDAR_API}/calendars/primary/events?${params}`;
-  const response = await googleFetch(url, token);
-  const data: CalendarListResponse = await response.json();
+  const calendarIds = await fetchCalendarIds(token);
 
-  return (data.items ?? []).filter(
-    (event) => event.status !== "cancelled",
+  const results = await Promise.all(
+    calendarIds.map(async (calId) => {
+      const url = `${CALENDAR_API}/calendars/${encodeURIComponent(calId)}/events?${params}`;
+      const response = await googleFetch(url, token);
+      const data: CalendarEventsResponse = await response.json();
+      return (data.items ?? []).filter(
+        (event) => event.status !== "cancelled",
+      );
+    }),
   );
+
+  // Flatten and deduplicate by event id
+  const seen = new Set<string>();
+  const events: CalendarEvent[] = [];
+  for (const batch of results) {
+    for (const event of batch) {
+      if (!seen.has(event.id)) {
+        seen.add(event.id);
+        events.push(event);
+      }
+    }
+  }
+
+  // Sort by start time
+  events.sort((a, b) => {
+    const aTime = a.start.dateTime ?? a.start.date ?? "";
+    const bTime = b.start.dateTime ?? b.start.date ?? "";
+    return aTime.localeCompare(bTime);
+  });
+
+  return events;
 }
 
 /**

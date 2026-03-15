@@ -86,6 +86,32 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Ensure user profile exists (FK required for task insert)
+    const { data: profile } = await supabase
+      .from('users')
+      .select('id')
+      .eq('id', user.id)
+      .single();
+
+    if (!profile) {
+      const { error: upsertError } = await supabase
+        .from('users')
+        .upsert({
+          id: user.id,
+          email: user.email ?? '',
+          name: (user.user_metadata?.full_name as string) ?? null,
+          avatar_url: (user.user_metadata?.avatar_url as string) ?? null,
+        });
+
+      if (upsertError) {
+        console.error('Failed to create user profile:', upsertError);
+        return NextResponse.json(
+          { error: 'Failed to create user profile', detail: upsertError.message },
+          { status: 500 },
+        );
+      }
+    }
+
     const body: unknown = await request.json();
     const parsed = CreateTaskSchema.safeParse(body);
 
@@ -131,12 +157,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       .single();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error('Task insert error:', { message: error.message, code: error.code, hint: error.hint });
+      return NextResponse.json(
+        { error: error.message, code: error.code, hint: error.hint ?? null },
+        { status: 500 },
+      );
     }
 
     return NextResponse.json(task as Task, { status: 201 });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Internal server error';
+    console.error('Task creation exception:', message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
